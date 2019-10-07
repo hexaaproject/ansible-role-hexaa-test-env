@@ -1,0 +1,56 @@
+---
+
+- name: check if webserver cert exists
+  stat:
+    path: "{{ PROXY_CERTIFICATE_PATH }}/{{ LOCAL_DOMAIN }}.crt"
+  register: webserver_cert
+
+- name: check if webserver privkey exists
+  stat:
+    path: "{{ PROXY_CERTIFICATE_PATH }}/{{ LOCAL_DOMAIN }}.key"
+  register: webserver_privkey
+
+- name: Generate an OpenSSL private key with the default values (4096 bits, RSA)
+  openssl_privatekey:
+    path: "{{ PROXY_CERTIFICATE_PATH }}/{{ LOCAL_DOMAIN }}.key"
+  when:
+    - not webserver_privkey.stat.exists
+- name: Generate an OpenSSL Certificate Signing Request
+  openssl_csr:
+    path:             "{{ PROXY_CERTIFICATE_PATH }}/csr.csr"
+    privatekey_path:  "{{ PROXY_CERTIFICATE_PATH }}/{{ LOCAL_DOMAIN }}.key"
+    common_name:      "{{ LOCAL_DOMAIN }}"
+    subject_alt_name: "DNS:*.{{ LOCAL_DOMAIN }},DNS:{{ LOCAL_DOMAIN }}"
+    basic_constraints: ["CA:TRUE"]
+    basic_constraints_critical: true
+  when:
+    - not webserver_cert.stat.exists
+- name: Generate a Self Signed OpenSSL certificate
+  openssl_certificate:
+    path:            "{{ PROXY_CERTIFICATE_PATH }}/{{ LOCAL_DOMAIN }}.crt"
+    privatekey_path: "{{ PROXY_CERTIFICATE_PATH }}/{{ LOCAL_DOMAIN }}.key"
+    csr_path:        "{{ PROXY_CERTIFICATE_PATH }}/csr.csr"
+    provider: selfsigned
+  when:
+    - not webserver_cert.stat.exists
+
+
+- name: Ensure pyff config directory is available
+  file:
+    path: "{{ item }}"
+    mode: 0755
+    state: directory
+  with_items:
+    - "{{ DS_DATADIR }}/config"
+    - "{{ DS_DATADIR }}/certs"
+  tags: pyff
+- name: Ensure pyff config pipeline is available
+  template:
+    src: templates/mdx.fd.j2
+    dest: "{{ DS_DATADIR }}/config/mdx.fd"
+    mode: 0644
+  vars:
+    pyff_metadata: "{{ DS_METADATA_SOURCES }}"
+    pyff_metadata_signing: no
+    publisher: mdx.example.com  # TODO: what is this for?
+  tags: pyff

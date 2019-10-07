@@ -1,0 +1,9 @@
+---
+
+- name: include environment
+  include: environment.yml
+  tags: [testenv]
+
+- name: include test-env
+  include: test-env.yml
+  tags: [testenv]

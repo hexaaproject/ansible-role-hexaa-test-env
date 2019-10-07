@@ -1,0 +1,99 @@
+---
+
+- name: Ensure nginx-proxy container is started
+  docker_container:
+    name: nginx-proxy
+    image: jwilder/nginx-proxy:alpine
+    ports:
+      - "127.0.0.1:{{ LOCAL_PORT_HTTP }}:80"
+      - "{{ gateway_ip }}:{{ LOCAL_PORT_HTTP }}:80"
+      - "127.0.0.1:{{ LOCAL_PORT_HTTPS }}:443"
+      - "{{ gateway_ip }}:{{ LOCAL_PORT_HTTPS }}:443"
+    volumes:
+      - /var/run/docker.sock:/tmp/docker.sock:ro
+      - "{{ PROXY_CERTIFICATE_PATH if LOCAL_PROTO == 'https' else 'empty' }}:/etc/nginx/certs/:ro"
+
+- name: Start MailHog container
+  docker_container:
+    name: "mail.{{ LOCAL_DOMAIN }}"
+    image: mailhog/mailhog:latest
+    ports:
+      - "127.0.0.1:1025:1025"
+      - "127.0.0.1:8025:8025"
+    env:
+      VIRTUAL_HOST: "mail.{{ LOCAL_DOMAIN }}"
+      VIRTUAL_PORT: "8025"
+    networks:
+      - name: "{{ docker_network_name_backend }}"
+      - name: "{{ docker_network_name_frontend }}"
+
+- name: Ensure pyff container is started
+  docker_container:
+    name: "metadata.{{ LOCAL_DOMAIN }}"
+    image: leifj/pyff:latest
+    #image: docker.sunet.se/pyff
+    ports:
+      - "127.0.0.1:8080:8080"
+      - "127.0.0.1:8081:8080"
+    volumes:
+      - "{{ DS_DATADIR }}/config:/opt/pyff"
+      - "{{ DS_DATADIR }}/certs:/opt/pyff/certs"
+    env:
+      VIRTUAL_HOST: "{{ VIRTUAL_HOST}}"
+    networks:
+      - name: hexaa_env
+      - name: "{{ docker_network_name_backend }}"
+      - name: "{{ docker_network_name_frontend }}"
+    etc_hosts: "{{ ETC_HOSTS }}"
+  vars:
+    VIRTUAL_HOST: "{{ MDX_DOMAIN }}"
+  tags:
+    - pyff
+
+
+- name: Start IDP docker containers
+  docker_container:
+    name: "{{ item.name }}"
+    #image: szabogyula/test-saml-idp
+    #image: tothp/test-saml-idp:7.3
+    #image: tothp/test-saml-idp:7.3-master
+    image: tothp/test-saml-idp:7.3-repo1.17.6
+    #image: tothp/test-saml-idp:7.3-repo-b278b2b
+    pull: no
+    env:
+      VIRTUAL_HOST: "{{ item.name }}"
+      MDX_URL:      "{{ LOCAL_MDX_DOCKER }}"
+      SIMPLESAMLPHP_ADMIN_PASSWORD: "{{ IDP_ADMIN_PASSWORD }}"
+      SIMPLESAMLPHP_SECRET_SALT:    "{{ IDP_SECRET_SALT }}"
+    networks:
+      - name: hexaa_env
+    ports:
+      - "127.0.0.1:{{ item.port }}:80"
+    #command: "bash -c \" sed -Ei \\\"s/baseurl.+$/baseurl' => '{{ LOCAL_PROTO }}:\\/\\/{{ item.name }}:{{ LOCAL_PORT }}\\/simplesaml\\/',/\\\" /var/www/simplesamlphp/config/config.php; apache2-foreground\""
+  tags: [idp]
+  with_items: "{{ LOCAL_IDPS }}"
+
+
+- name: Start SP docker containers
+  include_role:
+    name: ansible-role-attributes
+
+  vars:
+    CONTAINER_NAME: "{{ item.name }}"
+    BRAND:          "{{ item.name }}"
+    VIRTUAL_HOST:   "{{ item.name }}"
+    ENTITY_ID:      "{{ LOCAL_PROTO }}://{{ item.name }}/shibboleth"
+
+    DISCOVERY_URL: "{{ LOCAL_PROTO }}://metadata.hexaa.local:{{ LOCAL_PORT }}/role/idp.ds"
+    #DYNAMIC_METADATA_PROVIDER: "http://metadata.hexaa.local:{{ LOCAL_PORT }}/entities"
+    DYNAMIC_METADATA_PROVIDER: "{{ LOCAL_MDX_DOCKER }}/entities/"
+    ATTRIBUTE_RESOLVERS:         "{{ SP_ATTRIBUTE_RESOLVERS }}"
+    SUPPORT_CONTACT: "{{ item.name }}@{{ LOCAL_DOMAIN }}"
+    SUPPORT_CONTACT_SURNAME: "{{ item.name }} support"
+    NOSSL: "true"
+    BEHIND_SSL_TERMINATOR_PROXY:    "{{ 'true' if LOCAL_PROTO == 'https' else '' }}"
+    METADATA_NOSSL_ENDPOINTS: "{{'true' if LOCAL_PROTO == 'http' else '' }}"
+    LOGLEVEL: DEBUG
+    NETWORKS:
+      - name: hexaa_env
+  with_items: "{{ LOCAL_SPS }}"
