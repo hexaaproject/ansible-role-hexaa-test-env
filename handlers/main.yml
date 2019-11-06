@@ -1,2 +1,27 @@
 ---
 # handlers file for ansible-role-hexaa-test-env
+
+- name: Restart metadata exchange
+  listen: restart mdx
+  docker_container:
+    name: "metadata.{{ LOCAL_DOMAIN }}"
+    restart: yes
+  notify: restart backend-entityids-generator
+
+- name: Wait for metadata exchange
+  listen: restart mdx
+  uri:
+    url: "{{ MDX_URL }}/status"
+    timeout: 1
+    validate_certs: no
+  register: _result
+  until: _result.status == 200
+  retries: 10
+  delay: 2
+
+
+- name: Dummy hanlder
+  listen: restart backend-entityids-generator
+  debug:
+    msg: This task is only here so that tasks can notify this listener without error
+  when: no

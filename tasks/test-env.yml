@@ -12,6 +12,7 @@
     volumes:
       - /var/run/docker.sock:/tmp/docker.sock:ro
       - "{{ PROXY_CERTIFICATE_PATH if LOCAL_PROTO == 'https' else 'empty' }}:/etc/nginx/certs/:ro"
+  notify: restart mdx
 
 - name: Start MailHog container
   docker_container:
@@ -71,6 +72,7 @@
       - "127.0.0.1:{{ item.port }}:80"
     #command: "bash -c \" sed -Ei \\\"s/baseurl.+$/baseurl' => '{{ LOCAL_PROTO }}:\\/\\/{{ item.name }}:{{ LOCAL_PORT }}\\/simplesaml\\/',/\\\" /var/www/simplesamlphp/config/config.php; apache2-foreground\""
   tags: [idp]
+  notify: restart mdx
   with_items: "{{ LOCAL_IDPS }}"
 
 
