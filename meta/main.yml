@@ -16,6 +16,8 @@ galaxy_info:
 dependencies:
   - name: geerlingguy.docker
     become: true
+    failed_when: no
+    tags: docker
   - name: geerlingguy.pip
     become: true
     vars:
@@ -23,3 +25,4 @@ dependencies:
       pip_install_packages:
         - name: docker
         - name: pyopenssl
+    tags: docker

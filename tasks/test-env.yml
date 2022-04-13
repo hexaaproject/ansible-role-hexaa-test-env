@@ -84,7 +84,10 @@
 
     DISCOVERY_URL: "{{ LOCAL_PROTO }}://metadata.hexaa.local:{{ LOCAL_PORT }}/role/idp.ds"
     #DYNAMIC_METADATA_PROVIDER: "http://metadata.hexaa.local:{{ LOCAL_PORT }}/entities"
+    MDQ_METADATA_PROVIDER: ""
+    XML_METADATA_PROVIDER: ""
     DYNAMIC_METADATA_PROVIDER: "{{ LOCAL_MDX_DOCKER }}/entities/"
+
     ATTRIBUTE_RESOLVERS:         "{{ SP_ATTRIBUTE_RESOLVERS }}"
     SUPPORT_CONTACT: "{{ item.name }}@{{ LOCAL_DOMAIN }}"
     SUPPORT_CONTACT_SURNAME: "{{ item.name }} support"
