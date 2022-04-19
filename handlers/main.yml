@@ -6,10 +6,15 @@
   docker_container:
     name: "metadata.{{ LOCAL_DOMAIN }}"
     restart: yes
+  register: restarted
+  failed_when:
+    - restarted.changed == false
+    - restarted.msg != "Cannot create container when image is not specified!"
   notify: restart backend-entityids-generator
 
 - name: Wait for metadata exchange
   listen: restart mdx
+  when: restarted.changed
   uri:
     url: "{{ MDX_URL }}/status"
     timeout: 1
@@ -18,6 +23,7 @@
   until: _result.status == 200
   retries: 10
   delay: 2
+  failed_when: no
 
 
 - name: Dummy hanlder
